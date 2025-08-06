@@ -85,7 +85,7 @@
     (if top
       (-> state
           (update :stack pop)
-          (update :stack conj 
+          (update :stack conj
                   (if (= (:type top) :series)
                     (update top :elements conj contact)
                     {:type :series
@@ -99,7 +99,7 @@
     (if top
       (-> state
           (update :stack pop)
-          (update :stack conj 
+          (update :stack conj
                   (if (= (:type top) :series)
                     (update top :elements conj contact)
                     {:type :series
@@ -115,7 +115,7 @@
     (if top
       (-> state
           (update :stack pop)
-          (update :stack conj 
+          (update :stack conj
                   (if (= (:type top) :parallel)
                     (update top :branches conj new-branch)
                     {:type :parallel
@@ -129,7 +129,7 @@
     (if top
       (-> state
           (update :stack pop)
-          (update :stack conj 
+          (update :stack conj
                   (if (= (:type top) :parallel)
                     (update top :branches conj new-branch)
                     {:type :parallel
@@ -174,9 +174,9 @@
             block1 (peek stack')
             stack'' (pop stack')
             combined {:type :series
-                     :elements (vec (concat 
-                                   (if (= (:type block1) :series) (:elements block1) [block1])
-                                   (if (= (:type block2) :series) (:elements block2) [block2])))}]
+                      :elements (vec (concat
+                                      (if (= (:type block1) :series) (:elements block1) [block1])
+                                      (if (= (:type block2) :series) (:elements block2) [block2])))}]
         (assoc state :stack (conj stack'' combined)))
       state)))
 
@@ -189,7 +189,7 @@
             block1 (peek stack')
             stack'' (pop stack')
             combined {:type :parallel
-                     :branches [block1 block2]}]
+                      :branches [block1 block2]}]
         (assoc state :stack (conj stack'' combined)))
       state)))
 
@@ -282,11 +282,11 @@
   (cond
     (= (:type logic) :series)
     (render-series-elements (:elements logic))
-    
+
     (= (:type logic) :parallel)
     ;; Return marker for parallel processing in render-rung
     {:parallel-lines (render-parallel-ldmicro-style (:branches logic))}
-    
+
     :else
     (render-element logic)))
 (defn render-rung-ldmicro
@@ -332,7 +332,7 @@
      :rungs (:rungs final-state)
      :diagram ladder-diagram
      :warnings (when (seq (:stack final-state))
-                ["Warning: Unprocessed stack elements remain"])}))
+                 ["Warning: Unprocessed stack elements remain"])}))
 
 ;; ==========================================
 ;; Validation Functions
@@ -346,10 +346,10 @@
     (cond
       (empty? instructions)
       (conj errors "Error: No valid instructions found")
-      
+
       (not-any? #(#{:OUT :SET :RST} (:opcode %)) instructions)
       (conj errors "Warning: No output instructions found")
-      
+
       :else errors)))
 ;; ==========================================
 ;; Example Usage - LDmicro Style
@@ -425,7 +425,7 @@ OUT Y1"]
   (println "\n" (str/join "" (repeat 50 "=")) "\n")
   (example-complex)
   (println "\n" (str/join "" (repeat 50 "=")) "\n")
-  (example-ldmicro-estop))
+  #_(example-ldmicro-estop))
 ;; ==========================================
 ;; Advanced Features
 ;; ==========================================
@@ -441,8 +441,8 @@ OUT Y1"]
   [rungs]
   (let [outputs (set (map #(get-in % [:output :operand]) rungs))
         inputs (mapcat (fn [rung]
-                        (tree-seq map? vals (:logic rung)))
-                      rungs)
+                         (tree-seq map? vals (:logic rung)))
+                       rungs)
         input-operands (set (keep :operand inputs))]
     {:outputs outputs
      :inputs input-operands
@@ -485,10 +485,10 @@ OUT Y1"]
   (cond
     (= (first args) "example")
     (run-all-examples)
-    
+
     (= (count args) 2)
     (convert-file (first args) (second args))
-    
+
     :else
     (do
       (println "Usage:")
