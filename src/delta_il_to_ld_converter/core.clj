@@ -227,11 +227,11 @@
   "Render a ladder element as ASCII art"
   [element]
   (case (:type element)
-    :no-contact (str "----] [----")
-    :nc-contact (str "----]/[----")
-    :normal-coil (str "----( )----")
-    :set-coil (str "----(S)----")
-    :reset-coil (str "----(R)----")
+    :no-contact (str "----]" (:operand element) "[----")
+    :nc-contact (str "----]/" (:operand element) "[----")
+    :normal-coil (str "----(" (:operand element) ")----")
+    :set-coil (str "----(S " (:operand element) ")----")
+    :reset-coil (str "----(R " (:operand element) ")----")
     ""))
 
 (defn pad-to-length
@@ -260,20 +260,20 @@
     (if (= (count branches) 2)
       ;; Simple two-branch parallel
       (let [[branch1 branch2] padded-branches]
-        [(str "----+--" branch1 "--+----")
-         (str "    |" (apply str (repeat (+ (count branch1) 2) " ")) "|    ")
-         (str "    +--" branch2 "--+    ")])
+        [(str "----+" branch1 "+----")
+         (str "    |" (apply str (repeat (count branch1) " ")) "|    ")
+         (str "    +" branch2 "+    ")])
       ;; Multiple branches
       (let [lines (atom [])]
         ;; First branch with top junction
-        (swap! lines conj (str "----+--" (first padded-branches) "--+----"))
+        (swap! lines conj (str "----+" (first padded-branches) "+----"))
         ;; Middle branches
         (doseq [branch (take (- (count padded-branches) 2) (rest padded-branches))]
-          (swap! lines conj (str "    |" (apply str (repeat (+ (count branch) 2) " ")) "|    "))
-          (swap! lines conj (str "    +--" branch "--+    ")))
+          (swap! lines conj (str "    |" (apply str (repeat (count branch) " ")) "|    "))
+          (swap! lines conj (str "    +" branch "+    ")))
         ;; Last branch
-        (swap! lines conj (str "    |" (apply str (repeat (+ (count (last padded-branches)) 2) " ")) "|    "))
-        (swap! lines conj (str "    +--" (last padded-branches) "--+    "))
+        (swap! lines conj (str "    |" (apply str (repeat (count (last padded-branches)) " ")) "|    "))
+        (swap! lines conj (str "    +" (last padded-branches) "+    "))
         @lines))))
 
 (defn render-logic-structure
