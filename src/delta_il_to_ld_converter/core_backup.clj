@@ -37,6 +37,7 @@
        (map-indexed (fn [idx line] (parse-line line (inc idx))))
        (filter some?)
        vec))
+
 ;; ==========================================
 ;; Stack-based IL Interpreter
 ;; ==========================================
@@ -78,6 +79,7 @@
       (update :stack conj {:type :series
                            :elements [(create-contact :input operand true)]
                            :start-new-rung true})))
+
 (defmethod process-instruction :AND
   [state {:keys [operand]}]
   (let [top (peek (:stack state))
@@ -106,7 +108,6 @@
                      :elements [top contact]})))
       state)))
 
-;; OR creates parallel branches
 (defmethod process-instruction :OR
   [state {:keys [operand]}]
   (let [top (peek (:stack state))
@@ -121,6 +122,7 @@
                     {:type :parallel
                      :branches [top new-branch]})))
       state)))
+
 (defmethod process-instruction :ORI
   [state {:keys [operand]}]
   (let [top (peek (:stack state))
@@ -165,6 +167,7 @@
           (update :rungs conj {:logic top
                                :output (create-coil operand :reset-coil)}))
       state)))
+
 (defmethod process-instruction :ANB
   [state _]
   (let [stack (:stack state)]
@@ -219,104 +222,74 @@
 (defmethod process-instruction :default
   [state _]
   state)
+
 ;; ==========================================
-;; IMPROVED ASCII Ladder Diagram Renderer (LDmicro style)
+;; Ladder Diagram Renderer
 ;; ==========================================
 
 (defn render-element
   "Render a ladder element as ASCII art"
   [element]
   (case (:type element)
-    :no-contact (str "----] [----")
-    :nc-contact (str "----]/[----")
-    :normal-coil (str "----( )----")
-    :set-coil (str "----(S)----")
-    :reset-coil (str "----(R)----")
+    :no-contact (str "-[" (:operand element) "]-")
+    :nc-contact (str "-[/" (:operand element) "]-")
+    :normal-coil (str "-(" (:operand element) ")")
+    :set-coil (str "-(S " (:operand element) ")")
+    :reset-coil (str "-(R " (:operand element) ")")
     ""))
 
-(defn pad-to-length
-  "Pad a string to specified length"
-  [s len]
-  (let [current-len (count s)]
-    (if (>= current-len len)
-      s
-      (str s (apply str (repeat (- len current-len) "-"))))))
-
-(defn render-series-elements
-  "Render series elements connected together"
+(defn render-series
+  "Render series connected elements"
   [elements]
-  (str/join "" (map render-element elements)))
+  (str/join "-" (map render-element elements)))
 
-(declare render-logic-structure)
-(defn render-parallel-ldmicro-style
-  "Render parallel branches in LDmicro ASCII style with junction points"
+(declare render-logic)
+
+(defn render-parallel
+  "Render parallel branches"
   [branches]
-  (let [rendered-branches (map render-logic-structure branches)
-        ;; Find the maximum length for alignment
-        max-len (apply max (map count rendered-branches))
-        ;; Pad all branches to same length
-        padded-branches (map #(pad-to-length % max-len) rendered-branches)]
-    ;; Build the parallel structure with junction points
-    (if (= (count branches) 2)
-      ;; Simple two-branch parallel
-      (let [[branch1 branch2] padded-branches]
-        [(str "----+--" branch1 "--+----")
-         (str "    |" (apply str (repeat (+ (count branch1) 2) " ")) "|    ")
-         (str "    +--" branch2 "--+    ")])
-      ;; Multiple branches
-      (let [lines (atom [])]
-        ;; First branch with top junction
-        (swap! lines conj (str "----+--" (first padded-branches) "--+----"))
-        ;; Middle branches
-        (doseq [branch (take (- (count padded-branches) 2) (rest padded-branches))]
-          (swap! lines conj (str "    |" (apply str (repeat (+ (count branch) 2) " ")) "|    "))
-          (swap! lines conj (str "    +--" branch "--+    ")))
-        ;; Last branch
-        (swap! lines conj (str "    |" (apply str (repeat (+ (count (last padded-branches)) 2) " ")) "|    "))
-        (swap! lines conj (str "    +--" (last padded-branches) "--+    "))
-        @lines))))
+  (let [rendered-branches (map render-logic branches)]
+    (str "++" 
+         (str/join (str "\n     +") 
+                   (map #(str "-" % "-") rendered-branches))
+         "\n     ++")))
 
-(defn render-logic-structure
+(defn render-logic
   "Render logic structure recursively"
   [logic]
-  (cond
-    (= (:type logic) :series)
-    (render-series-elements (:elements logic))
-    
-    (= (:type logic) :parallel)
-    ;; Return marker for parallel processing in render-rung
-    {:parallel-lines (render-parallel-ldmicro-style (:branches logic))}
-    
-    :else
+  (case (:type logic)
+    :series (render-series (:elements logic))
+    :parallel (render-parallel (:branches logic))
     (render-element logic)))
-(defn render-rung-ldmicro
-  "Render a complete ladder rung in LDmicro style"
+
+(defn render-rung
+  "Render a complete ladder rung"
   [rung index]
-  (let [logic (:logic rung)
-        output (:output rung)
-        logic-render (render-logic-structure logic)]
-    (if (map? logic-render)
-      ;; Handle parallel branches
-      (let [lines (:parallel-lines logic-render)
-            output-str (render-element output)]
-        (str/join "\n"
-                  (map-indexed
-                   (fn [idx line]
-                     (if (zero? idx)
-                       ;; First line with rung number and output
-                       (str "||" line output-str "||")
-                       ;; Continuation lines
-                       (str "||" line (apply str (repeat (count output-str) " ")) "||")))
-                   lines)))
-      ;; Simple series rung
-      (str "||--" logic-render (render-element output) "||"))))
+  (let [logic-str (if (:logic rung)
+                    (render-logic (:logic rung))
+                    "")
+        output-str (if (:output rung)
+                    (render-element (:output rung))
+                    "")
+        lines (str/split-lines (str logic-str))]
+    (if (= (count lines) 1)
+      (str (format "%03d: |" index) logic-str output-str "|\n")
+      (str (format "%03d: |" index) (first lines) output-str "|\n"
+           (str/join "\n" (map #(str "     |" % "|") (rest lines)))
+           "\n"))))
 
 (defn render-ladder
-  "Render complete ladder diagram in LDmicro style"
+  "Render complete ladder diagram"
   [rungs]
-  (let [separator "||                                                 ||"
-        rung-strs (map-indexed #(render-rung-ldmicro %2 (inc %1)) rungs)]
-    (str/join (str "\n" separator "\n") rung-strs)))
+  (let [header "=== LADDER DIAGRAM ===\n"
+        power-rails "     +----[POWER RAIL]----+\n"
+        rung-strs (map-indexed #(render-rung %2 (inc %1)) rungs)
+        footer "     +----[END RAIL]------+"]
+    (str header
+         power-rails
+         (str/join "\n" rung-strs)
+         footer)))
+
 ;; ==========================================
 ;; Main Conversion Function
 ;; ==========================================
@@ -351,27 +324,15 @@
       (conj errors "Warning: No output instructions found")
       
       :else errors)))
-;; ==========================================
-;; Example Usage - LDmicro Style
-;; ==========================================
 
-(defn example-ldmicro-estop []
-  "Example from decompile-ll.txt - ESTOP circuit"
-  (println "\n=== LDmicro ESTOP Example ===")
-  (println "Original:")
-  (println "||                                                 ||")
-  (println "||--[/ESTOP]----[/STOP]----+--[START]--+----(RUN)--||")
-  (println "||                         |           |           ||")
-  (println "||                         +--[RUN]----+           ||")
-  (println "||                                                 ||")
-  (println "||--[RUN]----(MOTOR)-------------------------------||")
-  (println "||                                                 ||")
-  (println "\nNOTE: This requires special handling for seal-in circuits"))
+;; ==========================================
+;; Example Usage
+;; ==========================================
 
 (defn example-simple []
   (let [il-code "LD X0
 OUT Y0"]
-    (println "\n=== Simple Example ===")
+    (println "Simple Example:")
     (println "IL Code:")
     (println il-code)
     (println "\nLadder Diagram:")
@@ -382,16 +343,17 @@ OUT Y0"]
 AND X1
 AND X2
 OUT Y0"]
-    (println "\n=== Series Connection Example ===")
+    (println "\nSeries Connection Example:")
     (println "IL Code:")
     (println il-code)
     (println "\nLadder Diagram:")
     (println (:diagram (convert-il-to-ld il-code)))))
+
 (defn example-parallel []
   (let [il-code "LD X0
 OR X1
 OUT Y0"]
-    (println "\n=== Parallel Connection Example (LDmicro Style) ===")
+    (println "\nParallel Connection Example:")
     (println "IL Code:")
     (println il-code)
     (println "\nLadder Diagram:")
@@ -404,8 +366,13 @@ OR X2
 OUT Y0
 LD X3
 ANI X4
-OUT Y1"]
-    (println "\n=== Complex Example ===")
+OUT Y1
+LDI X5
+AND X6
+SET Y2
+LD X7
+RST Y2"]
+    (println "\nComplex Example:")
     (println "IL Code:")
     (println il-code)
     (println "\nLadder Diagram:")
@@ -418,17 +385,14 @@ OUT Y1"]
 
 (defn run-all-examples []
   (example-simple)
-  (println "\n" (str/join "" (repeat 50 "=")) "\n")
+  (println "\n" (str/join "" (repeat 40 "=")) "\n")
   (example-series)
-  (println "\n" (str/join "" (repeat 50 "=")) "\n")
+  (println "\n" (str/join "" (repeat 40 "=")) "\n")
   (example-parallel)
-  (println "\n" (str/join "" (repeat 50 "=")) "\n")
-  (example-complex)
-  (println "\n" (str/join "" (repeat 50 "=")) "\n")
-  (example-ldmicro-estop))
-;; ==========================================
-;; Advanced Features
-;; ==========================================
+  (println "\n" (str/join "" (repeat 40 "=")) "\n")
+  (example-complex))
+
+;; Advanced features for complex ladder logic
 
 (defn optimize-rungs
   "Optimize ladder rungs by combining common elements"
